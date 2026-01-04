@@ -6,12 +6,13 @@ import { fixedExpenseRoutes } from './fixedExpenses.js';
 import { goalRoutes } from './goals.js';
 import { dashboardRoutes } from './dashboard.js';
 import { reportRoutes } from './reports.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const routes = Router();
 
-routes.get('/health', (_req, res) => {
+routes.get('/health', asyncHandler(async (_req, res) => {
   res.json({ ok: true });
-});
+}));
 
 routes.use('/auth', authRoutes);
 routes.use('/transactions', transactionRoutes);

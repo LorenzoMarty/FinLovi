@@ -4,6 +4,7 @@ import { transactionCreateSchema, transactionTypeSchema } from '@finlovi/shared'
 import { validate } from '../middlewares/validate.js';
 import { requireAuth } from '../middlewares/auth.js';
 import { list, get, create, update, remove } from '../controllers/transactionsController.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -17,8 +18,14 @@ const idSchema = z.object({ id: z.coerce.number().int().positive() });
 
 export const transactionRoutes = Router();
 
-transactionRoutes.get('/', requireAuth, validate(querySchema, 'query'), list);
-transactionRoutes.get('/:id', requireAuth, validate(idSchema, 'params'), get);
-transactionRoutes.post('/', requireAuth, validate(transactionCreateSchema), create);
-transactionRoutes.put('/:id', requireAuth, validate(idSchema, 'params'), validate(transactionCreateSchema), update);
-transactionRoutes.delete('/:id', requireAuth, validate(idSchema, 'params'), remove);
+transactionRoutes.get('/', requireAuth, validate(querySchema, 'query'), asyncHandler(list));
+transactionRoutes.get('/:id', requireAuth, validate(idSchema, 'params'), asyncHandler(get));
+transactionRoutes.post('/', requireAuth, validate(transactionCreateSchema), asyncHandler(create));
+transactionRoutes.put(
+  '/:id',
+  requireAuth,
+  validate(idSchema, 'params'),
+  validate(transactionCreateSchema),
+  asyncHandler(update),
+);
+transactionRoutes.delete('/:id', requireAuth, validate(idSchema, 'params'), asyncHandler(remove));
