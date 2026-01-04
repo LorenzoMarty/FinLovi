@@ -22,7 +22,7 @@
     "start:web": "npm --workspace apps/web run preview",
     "test": "npm --workspace apps/api run test"
   },
-  "postinstall": "npm run build:shared",
+  "postinstall": "npm run build",
   "dependencies": {
     "express": "^4.19.2"
   },
