@@ -33,6 +33,7 @@ npm install
 ```
 # API
 copy apps\api\.env.example apps\api\.env
+# ou defina um `.env` na raiz (usado pelo server.js em produ‡Æo)
 
 # Web
 copy apps\web\.env.example apps\web\.env
@@ -53,10 +54,12 @@ mysql -u <usuario> -p < apps/api/migrations/001_create_categories.sql
 
 ```
 npm run dev
+# Produ‡Æo local (API + Web na mesma porta): npm start
 ```
 
 - API: `http://localhost:4000/api`
 - Web: `http://localhost:5173`
+  - Em modo produ‡Æo (npm start), tudo roda em `http://localhost:3000` e o front usa `/api` por padrÆo.
 
 ## Scripts
 
@@ -151,6 +154,12 @@ Base: `/api`
 - Build: `npm install && npm run build`
 - Output: `apps/web/dist`
 - Configure `VITE_API_URL` para apontar para a API em produção.
+
+### Hostinger (Web App - Express)
+- Preset: Express
+- Arquivo de entrada: `server.js` (raiz do repo)
+- Comando de start: `npm start` (executa `npm run build` antes de subir)
+- API e Web rodam na mesma porta; configure as vari veis do banco/JWT no painel. `VITE_API_URL` pode ficar em branco (usa `/api` em produ‡Æo).
 
 ## Notas
 

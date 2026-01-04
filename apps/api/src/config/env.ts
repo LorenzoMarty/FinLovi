@@ -1,7 +1,17 @@
+import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config();
+const cwd = process.cwd();
+const envFiles = [
+  process.env.API_ENV_FILE,
+  path.resolve(cwd, 'apps/api/.env'),
+  path.resolve(cwd, '.env'),
+].filter(Boolean);
+
+for (const file of envFiles) {
+  dotenv.config({ path: file });
+}
 
 const envSchema = z.object({
   NODE_ENV: z.string().default('development'),
