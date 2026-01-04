@@ -13,7 +13,7 @@
     "predev:api": "npm run build:shared",
     "build": "npm run build:shared && npm run build:api && npm run build:web",
     "build:shared": "npm --workspace packages/shared run build",
-    "build:api": "npm --workspace apps/api run build",
+    "build:api": "npm --workspace apps/api run build && rmdir /s /q api-dist 2>nul & xcopy /e /i /y apps\\api\\dist api-dist >nul",
     "build:web": "npm --workspace apps/web run build",
     "start": "node server.js",
     "prestart": "npm run build",
@@ -22,7 +22,7 @@
     "start:web": "npm --workspace apps/web run preview",
     "test": "npm --workspace apps/api run test"
   },
-  "postinstall": "npm run build:shared",
+  "postinstall": "npm run build",
   "dependencies": {
     "express": "^4.19.2"
   },

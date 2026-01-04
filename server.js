@@ -1,82 +1,110 @@
-import express from "express";
-import path from "node:path";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
+import express from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function exists(p) {
-  try { return fs.existsSync(p); } catch { return false; }
+const webDistDir = path.join(__dirname, 'apps', 'web', 'dist');
+const webIndexFile = path.join(webDistDir, 'index.html');
+
+const state = {
+  apiLoaded: false,
+  apiError: null,
+};
+
+function ensureBuildExists(filePath, label) {
+  if (!fs.existsSync(filePath)) {
+    console.error(`[startup] ${label} não encontrado: ${filePath}`);
+    console.error('[startup] Rode `npm run build` para gerar os artefatos.');
+    return false;
+  }
+  return true;
 }
 
-function findWebDist() {
-  // Candidatos comuns em Hostinger/cPanel e em monorepo
-  const candidates = [
-    // 1) ao lado do server.js (recomendado)
-    path.join(__dirname, "dist"),
-    // 2) monorepo padrão
-    path.join(__dirname, "apps", "web", "dist"),
-    // 3) relativo ao diretório de execução do processo
-    path.join(process.cwd(), "dist"),
-    path.join(process.cwd(), "apps", "web", "dist"),
-    // 4) alguns ambientes executam dentro de public_html
-    path.join(process.cwd(), "public_html", "dist"),
-    path.join(process.cwd(), "public_html", "apps", "web", "dist"),
-  ];
+async function loadApiApp() {
+  const apiBuildAbsPath = path.join(__dirname, 'api-dist', 'index.js');
 
-  for (const dir of candidates) {
-    const indexFile = path.join(dir, "index.html");
-    if (exists(indexFile)) {
-      return { dir, indexFile };
-    }
+  if (!ensureBuildExists(apiBuildAbsPath, 'Build da API (api-dist/index.js)')) {
+    state.apiError = 'API build ausente';
+    console.error('[startup] API falhou (build ausente). Web seguirá online.');
+    return null;
   }
 
-  // log detalhado para diagnosticar
-  console.error("[startup] WEB build não encontrado. Candidatos tentados:");
-  for (const dir of candidates) console.error(" -", path.join(dir, "index.html"));
-  console.error("[startup] __dirname =", __dirname);
-  console.error("[startup] process.cwd() =", process.cwd());
-
-  return { dir: null, indexFile: null };
+  try {
+    const apiUrl = pathToFileURL(apiBuildAbsPath).href;
+    const mod = await import(apiUrl);
+    const apiApp = mod.app ?? mod.default;
+    if (!apiApp) {
+      throw new Error('API build carregou, mas não exporta `app` nem `default` (api-dist/index.js)');
+    }
+    state.apiLoaded = true;
+    state.apiError = null;
+    console.log('[startup] API carregada com sucesso.');
+    return apiApp;
+  } catch (error) {
+    state.apiError = error instanceof Error ? error.message : String(error);
+    console.error(`[startup] API falhou ao carregar, web seguirá online: ${state.apiError}`);
+    return null;
+  }
 }
 
 async function start() {
-  const server = express();
-  server.disable("x-powered-by");
+  // Verifica build do web
+  if (!ensureBuildExists(webDistDir, 'Pasta do build WEB')) {
+    // segue rodando para servir health, mas avisando que o build não existe
+  }
+  if (fs.existsSync(webDistDir) && !ensureBuildExists(webIndexFile, 'WEB index.html')) {
+    // segue rodando
+  }
 
-  // Endpoint de diagnóstico do caminho
-  server.get("/health", (_req, res) => {
-    const web = findWebDist();
+  const server = express();
+  server.disable('x-powered-by');
+
+  // Health check (sem tocar no banco)
+  server.get('/health', (_req, res) => {
     res.json({
       ok: true,
-      node: process.version,
-      cwd: process.cwd(),
-      dirname: __dirname,
-      webDist: web.dir,
-      webIndex: web.indexFile,
-      webFound: Boolean(web.indexFile),
+      apiLoaded: state.apiLoaded,
+      apiError: state.apiError,
+      nodeVersion: process.version,
     });
   });
 
-  const web = findWebDist();
-
-  if (web.dir && web.indexFile) {
-    server.use(express.static(web.dir));
-    server.get("*", (_req, res) => res.sendFile(web.indexFile));
-  } else {
-    server.get("*", (_req, res) =>
-      res.status(500).type("text").send("WEB build não encontrado. Execute `npm run build`.")
-    );
+  // API (tenta carregar; se falhar, não derruba o processo)
+  const apiApp = await loadApiApp();
+  if (apiApp) {
+    server.use(apiApp);
   }
 
+  // Frontend estático
+  server.use(express.static(webDistDir));
+
+  // SPA fallback
+  server.get('*', (_req, res) => {
+    if (fs.existsSync(webIndexFile)) {
+      res.sendFile(webIndexFile);
+      return;
+    }
+    res.status(500).type('text').send('WEB build não encontrado. Execute `npm run build`.');
+  });
+
   const PORT = Number(process.env.PORT) || 3000;
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`[web] rodando na porta ${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[web+api] rodando na porta ${PORT}`);
   });
 }
 
-start().catch((err) => {
-  console.error("[startup] Erro fatal", err);
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err);
+});
+
+start().catch((error) => {
+  console.error('[startup] Erro fatal', error);
   process.exit(1);
 });
