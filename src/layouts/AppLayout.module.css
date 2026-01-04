@@ -1,0 +1,26 @@
+.layout {
+  display: grid;
+  grid-template-columns: var(--rail-width, 72px) 1fr;
+  min-height: 100vh;
+}
+
+.content {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.main {
+  padding: var(--space-md) clamp(var(--space-md), 4vw, var(--space-xl)) var(--space-xl);
+  display: grid;
+  gap: var(--space-md);
+}
+
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding-bottom: calc(var(--space-xl) + 64px);
+  }
+}

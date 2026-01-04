@@ -1,0 +1,136 @@
+.rail {
+  background: #101d29;
+  color: #f1f5f9;
+  padding: var(--space-sm) 8px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--space-sm);
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  width: var(--rail-width, 72px);
+  transition: width 0.2s ease, box-shadow 0.2s ease;
+}
+
+.open {
+  width: 184px;
+  box-shadow: 12px 0 24px rgba(0, 0, 0, 0.08);
+}
+
+.logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6daedb, #4e9f8a);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #0f1d2a;
+  margin: 0 auto;
+}
+
+.nav {
+  display: grid;
+  gap: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  color: #e2e8f0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.item:hover,
+.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.label {
+  font-size: 13px;
+  white-space: nowrap;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease, width 0.2s ease;
+}
+
+.label::after {
+  content: "";
+}
+
+.open .label,
+.expanded .label {
+  opacity: 1;
+  width: auto;
+}
+
+.toggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #dbe4ed;
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .rail {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 64px;
+    grid-template-rows: 1fr;
+    padding: 6px 12px;
+    z-index: 12;
+  }
+
+  .logo,
+  .toggle {
+    display: none;
+  }
+
+  .nav {
+    grid-auto-flow: column;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .item {
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px 0;
+    border-radius: var(--radius-md);
+  }
+
+  .label {
+    opacity: 1;
+    width: auto;
+    font-size: 0;
+  }
+
+  .label::after {
+    content: attr(data-short);
+    font-size: 11px;
+  }
+}

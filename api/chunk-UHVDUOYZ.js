@@ -1,0 +1,730 @@
+// src/config/env.ts
+import path from "path";
+import dotenv from "dotenv";
+import { z } from "zod";
+var cwd = process.cwd();
+var envFiles = [
+  process.env.API_ENV_FILE,
+  path.resolve(cwd, "apps/api/.env"),
+  path.resolve(cwd, ".env")
+].filter(Boolean);
+for (const file of envFiles) {
+  dotenv.config({ path: file });
+}
+var envSchema = z.object({
+  NODE_ENV: z.string().default("development"),
+  PORT: z.string().default("4000"),
+  DB_HOST: z.string(),
+  DB_PORT: z.string().default("3306"),
+  DB_NAME: z.string(),
+  DB_USER: z.string(),
+  DB_PASS: z.string(),
+  WEB_ORIGIN: z.string().default("*"),
+  AUTH_ENABLED: z.string().default("false"),
+  AUTH_EMAIL: z.string().optional(),
+  AUTH_PASSWORD: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
+  JWT_REFRESH_SECRET: z.string().optional(),
+  RATE_LIMIT_WINDOW: z.string().default("60000"),
+  RATE_LIMIT_MAX: z.string().default("100")
+});
+var parsed = envSchema.safeParse(process.env);
+if (!parsed.success) {
+  throw new Error(`Invalid environment variables: ${parsed.error.message}`);
+}
+var env = {
+  ...parsed.data,
+  PORT: Number(parsed.data.PORT),
+  DB_PORT: Number(parsed.data.DB_PORT),
+  AUTH_ENABLED: parsed.data.AUTH_ENABLED === "true",
+  RATE_LIMIT_WINDOW: Number(parsed.data.RATE_LIMIT_WINDOW),
+  RATE_LIMIT_MAX: Number(parsed.data.RATE_LIMIT_MAX)
+};
+
+// src/app.ts
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import pinoHttp from "pino-http";
+
+// src/utils/response.ts
+function ok(data) {
+  return { ok: true, data };
+}
+function fail(message, code, details) {
+  const error = { message, code, details };
+  return { ok: false, error };
+}
+
+// src/middlewares/errorHandler.ts
+function errorHandler(err, _req, res, _next) {
+  const message = err instanceof Error ? err.message : "Erro interno";
+  res.status(500).json(fail(message));
+}
+
+// src/routes/index.ts
+import { Router as Router8 } from "express";
+
+// src/routes/auth.ts
+import { Router } from "express";
+import { loginSchema } from "@finlovi/shared";
+
+// src/middlewares/validate.ts
+function validate(schema, target = "body") {
+  return (req, res, next) => {
+    const result = schema.safeParse(req[target]);
+    if (!result.success) {
+      return res.status(400).json(fail("Dados inv\xE1lidos", "VALIDATION_ERROR", result.error.flatten()));
+    }
+    req[target] = result.data;
+    return next();
+  };
+}
+
+// src/controllers/authController.ts
+import jwt from "jsonwebtoken";
+function ensureAuthConfig(res) {
+  if (!env.AUTH_ENABLED) {
+    res.status(501).json(fail("Autentica\xE7\xE3o desabilitada", "AUTH_DISABLED"));
+    return false;
+  }
+  if (!env.JWT_SECRET || !env.AUTH_EMAIL || !env.AUTH_PASSWORD) {
+    res.status(500).json(fail("Configura\xE7\xE3o de autentica\xE7\xE3o incompleta", "AUTH_CONFIG"));
+    return false;
+  }
+  return true;
+}
+function login(req, res) {
+  if (!ensureAuthConfig(res)) return;
+  const { email, password } = req.body;
+  if (email !== env.AUTH_EMAIL || password !== env.AUTH_PASSWORD) {
+    res.status(401).json(fail("Credenciais inv\xE1lidas", "UNAUTHORIZED"));
+    return;
+  }
+  const accessToken = jwt.sign({ email }, env.JWT_SECRET, { expiresIn: "15m" });
+  const refreshToken = env.JWT_REFRESH_SECRET ? jwt.sign({ email }, env.JWT_REFRESH_SECRET, { expiresIn: "7d" }) : null;
+  res.json(ok({ accessToken, refreshToken }));
+}
+function refresh(req, res) {
+  if (!ensureAuthConfig(res)) return;
+  if (!env.JWT_REFRESH_SECRET) {
+    res.status(501).json(fail("Refresh token desabilitado", "REFRESH_DISABLED"));
+    return;
+  }
+  const { refreshToken } = req.body;
+  if (!refreshToken) {
+    res.status(400).json(fail("Refresh token ausente", "VALIDATION_ERROR"));
+    return;
+  }
+  try {
+    const payload = jwt.verify(refreshToken, env.JWT_REFRESH_SECRET);
+    const accessToken = jwt.sign({ email: payload.email }, env.JWT_SECRET || "changeme", { expiresIn: "15m" });
+    res.json(ok({ accessToken }));
+  } catch (_err) {
+    res.status(401).json(fail("Refresh token inv\xE1lido", "UNAUTHORIZED"));
+  }
+}
+function logout(_req, res) {
+  if (!env.AUTH_ENABLED) {
+    res.json(ok({ message: "Logout n\xE3o necess\xE1rio" }));
+    return;
+  }
+  res.json(ok({ message: "Logout efetuado" }));
+}
+function me(_req, res) {
+  if (!env.AUTH_ENABLED) {
+    res.json(ok({ enabled: false }));
+    return;
+  }
+  res.json(ok({ enabled: true, email: env.AUTH_EMAIL }));
+}
+
+// src/routes/auth.ts
+var authRoutes = Router();
+authRoutes.post("/login", validate(loginSchema), login);
+authRoutes.post("/refresh", refresh);
+authRoutes.post("/logout", logout);
+authRoutes.get("/me", me);
+
+// src/routes/transactions.ts
+import { Router as Router2 } from "express";
+import { z as z2 } from "zod";
+import { transactionCreateSchema, transactionTypeSchema } from "@finlovi/shared";
+
+// src/middlewares/auth.ts
+import jwt2 from "jsonwebtoken";
+function requireAuth(req, res, next) {
+  if (!env.AUTH_ENABLED) {
+    return next();
+  }
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json(fail("Token ausente", "UNAUTHORIZED"));
+  }
+  const token = header.replace("Bearer ", "").trim();
+  try {
+    const payload = jwt2.verify(token, env.JWT_SECRET || "changeme");
+    req.user = payload;
+    return next();
+  } catch (_err) {
+    return res.status(401).json(fail("Token inv\xE1lido", "UNAUTHORIZED"));
+  }
+}
+
+// src/config/db.ts
+import mysql from "mysql2/promise";
+var db = mysql.createPool({
+  host: env.DB_HOST,
+  port: env.DB_PORT,
+  user: env.DB_USER,
+  password: env.DB_PASS,
+  database: env.DB_NAME,
+  waitForConnections: true,
+  connectionLimit: 10,
+  decimalNumbers: true
+});
+
+// src/utils/pagination.ts
+function getPagination(page, limit) {
+  const safePage = Math.max(1, page);
+  const safeLimit = Math.min(100, Math.max(1, limit));
+  const offset = (safePage - 1) * safeLimit;
+  return { page: safePage, limit: safeLimit, offset };
+}
+
+// src/repositories/transactionsRepo.ts
+async function listTransactions(db2, filters, limit, offset) {
+  const conditions = [];
+  const params = [];
+  if (filters.type) {
+    conditions.push("type = ?");
+    params.push(filters.type);
+  }
+  if (filters.category) {
+    conditions.push("category = ?");
+    params.push(filters.category);
+  }
+  if (filters.from) {
+    conditions.push("date >= ?");
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    conditions.push("date <= ?");
+    params.push(filters.to);
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const [countRows] = await db2.execute(
+    `SELECT COUNT(*) as total FROM transactions ${where}`,
+    params
+  );
+  const total = countRows[0]?.total || 0;
+  const [rows] = await db2.execute(
+    `SELECT id, description, amount, category, type, date
+     FROM transactions ${where}
+     ORDER BY date DESC, id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+  return { rows, total };
+}
+async function getTransaction(db2, id) {
+  const [rows] = await db2.execute(
+    "SELECT id, description, amount, category, type, date FROM transactions WHERE id = ?",
+    [id]
+  );
+  return rows[0] || null;
+}
+async function createTransaction(db2, payload) {
+  const { description, amount, category, type, date } = payload;
+  await db2.execute(
+    "INSERT INTO transactions (description, amount, category, type, date) VALUES (?, ?, ?, ?, ?)",
+    [description, amount, category, type, date]
+  );
+}
+async function updateTransaction(db2, id, payload) {
+  const { description, amount, category, type, date } = payload;
+  await db2.execute(
+    "UPDATE transactions SET description = ?, amount = ?, category = ?, type = ?, date = ? WHERE id = ?",
+    [description, amount, category, type, date, id]
+  );
+}
+async function deleteTransaction(db2, id) {
+  await db2.execute("DELETE FROM transactions WHERE id = ?", [id]);
+}
+
+// src/controllers/transactionsController.ts
+async function list(req, res) {
+  const { page, limit, type, category, from, to } = req.query;
+  const { page: safePage, limit: safeLimit, offset } = getPagination(
+    Number(page || 1),
+    Number(limit || 20)
+  );
+  const { rows, total } = await listTransactions(
+    db,
+    { type, category, from, to },
+    safeLimit,
+    offset
+  );
+  res.json(ok({ items: rows, total, page: safePage, limit: safeLimit }));
+}
+async function get(req, res) {
+  const id = Number(req.params.id);
+  const row = await getTransaction(db, id);
+  if (!row) {
+    res.status(404).json(fail("Lan\xE7amento n\xE3o encontrado", "NOT_FOUND"));
+    return;
+  }
+  res.json(ok(row));
+}
+async function create(req, res) {
+  await createTransaction(db, req.body);
+  res.status(201).json(ok({ message: "Lan\xE7amento criado" }));
+}
+async function update(req, res) {
+  const id = Number(req.params.id);
+  const existing = await getTransaction(db, id);
+  if (!existing) {
+    res.status(404).json(fail("Lan\xE7amento n\xE3o encontrado", "NOT_FOUND"));
+    return;
+  }
+  await updateTransaction(db, id, req.body);
+  res.json(ok({ message: "Lan\xE7amento atualizado" }));
+}
+async function remove(req, res) {
+  const id = Number(req.params.id);
+  await deleteTransaction(db, id);
+  res.json(ok({ message: "Lan\xE7amento removido" }));
+}
+
+// src/routes/transactions.ts
+var querySchema = z2.object({
+  page: z2.coerce.number().int().min(1).default(1),
+  limit: z2.coerce.number().int().min(1).max(100).default(20),
+  type: transactionTypeSchema.optional(),
+  category: z2.string().optional(),
+  from: z2.string().optional(),
+  to: z2.string().optional()
+});
+var idSchema = z2.object({ id: z2.coerce.number().int().positive() });
+var transactionRoutes = Router2();
+transactionRoutes.get("/", requireAuth, validate(querySchema, "query"), list);
+transactionRoutes.get("/:id", requireAuth, validate(idSchema, "params"), get);
+transactionRoutes.post("/", requireAuth, validate(transactionCreateSchema), create);
+transactionRoutes.put("/:id", requireAuth, validate(idSchema, "params"), validate(transactionCreateSchema), update);
+transactionRoutes.delete("/:id", requireAuth, validate(idSchema, "params"), remove);
+
+// src/routes/categories.ts
+import { Router as Router3 } from "express";
+import { z as z3 } from "zod";
+import { categoryCreateSchema } from "@finlovi/shared";
+
+// src/controllers/categoriesController.ts
+import { defaultCategories } from "@finlovi/shared";
+
+// src/repositories/categoriesRepo.ts
+async function listCategories(db2) {
+  const [rows] = await db2.execute("SELECT id, name FROM categories ORDER BY name ASC");
+  return rows;
+}
+async function createCategory(db2, payload) {
+  await db2.execute("INSERT INTO categories (name) VALUES (?)", [payload.name]);
+}
+async function updateCategory(db2, id, payload) {
+  await db2.execute("UPDATE categories SET name = ? WHERE id = ?", [payload.name, id]);
+}
+async function deleteCategory(db2, id) {
+  await db2.execute("DELETE FROM categories WHERE id = ?", [id]);
+}
+
+// src/controllers/categoriesController.ts
+function isMissingTable(error) {
+  return error instanceof Error && error.message.includes("categories");
+}
+async function list2(req, res) {
+  try {
+    const rows = await listCategories(db);
+    res.json(ok(rows));
+  } catch (err) {
+    if (isMissingTable(err)) {
+      const fallback = defaultCategories.map((name, index) => ({ id: index + 1, name }));
+      res.json(ok(fallback));
+      return;
+    }
+    res.status(500).json(fail("Erro ao listar categorias"));
+  }
+}
+async function create2(req, res) {
+  try {
+    await createCategory(db, req.body);
+    res.status(201).json(ok({ message: "Categoria criada" }));
+  } catch (err) {
+    if (isMissingTable(err)) {
+      res.status(501).json(fail("Categorias requerem migration", "MIGRATION_REQUIRED"));
+      return;
+    }
+    res.status(500).json(fail("Erro ao criar categoria"));
+  }
+}
+async function update2(req, res) {
+  try {
+    await updateCategory(db, Number(req.params.id), req.body);
+    res.json(ok({ message: "Categoria atualizada" }));
+  } catch (err) {
+    if (isMissingTable(err)) {
+      res.status(501).json(fail("Categorias requerem migration", "MIGRATION_REQUIRED"));
+      return;
+    }
+    res.status(500).json(fail("Erro ao atualizar categoria"));
+  }
+}
+async function remove2(req, res) {
+  try {
+    await deleteCategory(db, Number(req.params.id));
+    res.json(ok({ message: "Categoria removida" }));
+  } catch (err) {
+    if (isMissingTable(err)) {
+      res.status(501).json(fail("Categorias requerem migration", "MIGRATION_REQUIRED"));
+      return;
+    }
+    res.status(500).json(fail("Erro ao remover categoria"));
+  }
+}
+
+// src/routes/categories.ts
+var idSchema2 = z3.object({ id: z3.coerce.number().int().positive() });
+var categoryRoutes = Router3();
+categoryRoutes.get("/", requireAuth, list2);
+categoryRoutes.post("/", requireAuth, validate(categoryCreateSchema), create2);
+categoryRoutes.put("/:id", requireAuth, validate(idSchema2, "params"), validate(categoryCreateSchema), update2);
+categoryRoutes.delete("/:id", requireAuth, validate(idSchema2, "params"), remove2);
+
+// src/routes/fixedExpenses.ts
+import { Router as Router4 } from "express";
+import { z as z4 } from "zod";
+import { fixedExpenseCreateSchema } from "@finlovi/shared";
+
+// src/repositories/fixedExpensesRepo.ts
+async function listFixedExpenses(db2) {
+  const [rows] = await db2.execute(
+    "SELECT id, description, amount, category, due_day FROM fixed_expenses ORDER BY due_day ASC, id DESC"
+  );
+  return rows;
+}
+async function getFixedExpense(db2, id) {
+  const [rows] = await db2.execute(
+    "SELECT id, description, amount, category, due_day FROM fixed_expenses WHERE id = ?",
+    [id]
+  );
+  return rows[0] || null;
+}
+async function createFixedExpense(db2, payload) {
+  const { description, amount, category, due_day } = payload;
+  await db2.execute(
+    "INSERT INTO fixed_expenses (description, amount, category, due_day) VALUES (?, ?, ?, ?)",
+    [description, amount, category, due_day]
+  );
+}
+async function updateFixedExpense(db2, id, payload) {
+  const { description, amount, category, due_day } = payload;
+  await db2.execute(
+    "UPDATE fixed_expenses SET description = ?, amount = ?, category = ?, due_day = ? WHERE id = ?",
+    [description, amount, category, due_day, id]
+  );
+}
+async function deleteFixedExpense(db2, id) {
+  await db2.execute("DELETE FROM fixed_expenses WHERE id = ?", [id]);
+}
+
+// src/controllers/fixedExpensesController.ts
+function daysUntilDue(dueDay) {
+  const today = /* @__PURE__ */ new Date();
+  const due = new Date(today.getFullYear(), today.getMonth(), dueDay);
+  if (due < today) {
+    due.setMonth(due.getMonth() + 1);
+  }
+  const diff = due.getTime() - today.getTime();
+  return Math.ceil(diff / (1e3 * 60 * 60 * 24));
+}
+async function list3(req, res) {
+  const rows = await listFixedExpenses(db);
+  res.json(ok(rows));
+}
+async function upcoming(req, res) {
+  const days = Number(req.query.days || 7);
+  const rows = await listFixedExpenses(db);
+  const upcomingRows = rows.map((row) => ({ ...row, days_until_due: daysUntilDue(Number(row.due_day)) })).filter((row) => row.days_until_due <= days).sort((a, b) => a.days_until_due - b.days_until_due);
+  res.json(ok(upcomingRows));
+}
+async function get2(req, res) {
+  const id = Number(req.params.id);
+  const row = await getFixedExpense(db, id);
+  if (!row) {
+    res.status(404).json(fail("Gasto fixo n\xE3o encontrado", "NOT_FOUND"));
+    return;
+  }
+  res.json(ok(row));
+}
+async function create3(req, res) {
+  await createFixedExpense(db, req.body);
+  res.status(201).json(ok({ message: "Gasto fixo criado" }));
+}
+async function update3(req, res) {
+  const id = Number(req.params.id);
+  const existing = await getFixedExpense(db, id);
+  if (!existing) {
+    res.status(404).json(fail("Gasto fixo n\xE3o encontrado", "NOT_FOUND"));
+    return;
+  }
+  await updateFixedExpense(db, id, req.body);
+  res.json(ok({ message: "Gasto fixo atualizado" }));
+}
+async function remove3(req, res) {
+  await deleteFixedExpense(db, Number(req.params.id));
+  res.json(ok({ message: "Gasto fixo removido" }));
+}
+
+// src/routes/fixedExpenses.ts
+var idSchema3 = z4.object({ id: z4.coerce.number().int().positive() });
+var fixedExpenseRoutes = Router4();
+fixedExpenseRoutes.get("/", requireAuth, list3);
+fixedExpenseRoutes.get("/upcoming", requireAuth, upcoming);
+fixedExpenseRoutes.get("/:id", requireAuth, validate(idSchema3, "params"), get2);
+fixedExpenseRoutes.post("/", requireAuth, validate(fixedExpenseCreateSchema), create3);
+fixedExpenseRoutes.put("/:id", requireAuth, validate(idSchema3, "params"), validate(fixedExpenseCreateSchema), update3);
+fixedExpenseRoutes.delete("/:id", requireAuth, validate(idSchema3, "params"), remove3);
+
+// src/routes/goals.ts
+import { Router as Router5 } from "express";
+import { z as z5 } from "zod";
+import { goalCreateSchema } from "@finlovi/shared";
+
+// src/repositories/goalsRepo.ts
+async function listGoals(db2) {
+  const [rows] = await db2.execute(
+    "SELECT id, name, target_amount, saved_amount, deadline, created_at FROM acquisition_goals ORDER BY deadline IS NULL, deadline ASC, id DESC"
+  );
+  return rows.map((row) => ({ ...row, deadline: row.deadline ?? null }));
+}
+async function getGoal(db2, id) {
+  const [rows] = await db2.execute(
+    "SELECT id, name, target_amount, saved_amount, deadline, created_at FROM acquisition_goals WHERE id = ?",
+    [id]
+  );
+  const row = rows[0];
+  return row ? { ...row, deadline: row.deadline ?? null } : null;
+}
+async function createGoal(db2, payload) {
+  const { name, target_amount, saved_amount, deadline } = payload;
+  await db2.execute(
+    "INSERT INTO acquisition_goals (name, target_amount, saved_amount, deadline) VALUES (?, ?, ?, ?)",
+    [name, target_amount, saved_amount, deadline]
+  );
+}
+async function updateGoal(db2, id, payload) {
+  const { name, target_amount, saved_amount, deadline } = payload;
+  await db2.execute(
+    "UPDATE acquisition_goals SET name = ?, target_amount = ?, saved_amount = ?, deadline = ? WHERE id = ?",
+    [name, target_amount, saved_amount, deadline, id]
+  );
+}
+async function deleteGoal(db2, id) {
+  await db2.execute("DELETE FROM acquisition_goals WHERE id = ?", [id]);
+}
+
+// src/controllers/goalsController.ts
+async function list4(req, res) {
+  const rows = await listGoals(db);
+  const enriched = rows.map((row) => ({
+    ...row,
+    progress: row.target_amount > 0 ? Math.min(100, Math.round(row.saved_amount / row.target_amount * 100)) : 0
+  }));
+  res.json(ok(enriched));
+}
+async function get3(req, res) {
+  const id = Number(req.params.id);
+  const row = await getGoal(db, id);
+  if (!row) {
+    res.status(404).json(fail("Meta n\xE3o encontrada", "NOT_FOUND"));
+    return;
+  }
+  res.json(ok(row));
+}
+async function create4(req, res) {
+  await createGoal(db, req.body);
+  res.status(201).json(ok({ message: "Meta criada" }));
+}
+async function update4(req, res) {
+  const id = Number(req.params.id);
+  const existing = await getGoal(db, id);
+  if (!existing) {
+    res.status(404).json(fail("Meta n\xE3o encontrada", "NOT_FOUND"));
+    return;
+  }
+  await updateGoal(db, id, req.body);
+  res.json(ok({ message: "Meta atualizada" }));
+}
+async function remove4(req, res) {
+  await deleteGoal(db, Number(req.params.id));
+  res.json(ok({ message: "Meta removida" }));
+}
+
+// src/routes/goals.ts
+var idSchema4 = z5.object({ id: z5.coerce.number().int().positive() });
+var goalRoutes = Router5();
+goalRoutes.get("/", requireAuth, list4);
+goalRoutes.get("/:id", requireAuth, validate(idSchema4, "params"), get3);
+goalRoutes.post("/", requireAuth, validate(goalCreateSchema), create4);
+goalRoutes.put("/:id", requireAuth, validate(idSchema4, "params"), validate(goalCreateSchema), update4);
+goalRoutes.delete("/:id", requireAuth, validate(idSchema4, "params"), remove4);
+
+// src/routes/dashboard.ts
+import { Router as Router6 } from "express";
+
+// src/utils/dates.ts
+function getPeriodRange(period) {
+  const now = /* @__PURE__ */ new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  let end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  if (period === "previous") {
+    start.setMonth(start.getMonth() - 1);
+    end = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (period === "last3") {
+    start.setMonth(start.getMonth() - 2);
+  }
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10)
+  };
+}
+
+// src/controllers/dashboardController.ts
+async function summary(req, res) {
+  const period = String(req.query.period || "current");
+  const { start, end } = getPeriodRange(period);
+  const [rows] = await db.execute(
+    `SELECT
+      SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS total_income,
+      SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense,
+      SUM(CASE WHEN type = 'income' THEN 1 ELSE 0 END) AS income_count,
+      SUM(CASE WHEN type = 'expense' THEN 1 ELSE 0 END) AS expense_count
+     FROM transactions
+     WHERE date BETWEEN ? AND ?`,
+    [start, end]
+  );
+  const totals = rows[0] || {
+    total_income: 0,
+    total_expense: 0,
+    income_count: 0,
+    expense_count: 0
+  };
+  const [topRows] = await db.execute(
+    `SELECT category, SUM(amount) AS total
+     FROM transactions
+     WHERE type = 'expense' AND date BETWEEN ? AND ?
+     GROUP BY category
+     ORDER BY total DESC
+     LIMIT 1`,
+    [start, end]
+  );
+  const topCategory = topRows[0] || null;
+  if (!totals) {
+    res.status(500).json(fail("Erro ao calcular resumo"));
+    return;
+  }
+  res.json(
+    ok({
+      period: { start, end },
+      total_income: totals.total_income || 0,
+      total_expense: totals.total_expense || 0,
+      net: (totals.total_income || 0) - (totals.total_expense || 0),
+      income_count: totals.income_count || 0,
+      expense_count: totals.expense_count || 0,
+      top_category: topCategory
+    })
+  );
+}
+
+// src/routes/dashboard.ts
+var dashboardRoutes = Router6();
+dashboardRoutes.get("/summary", requireAuth, summary);
+
+// src/routes/reports.ts
+import { Router as Router7 } from "express";
+
+// src/controllers/reportsController.ts
+function getDefaultRange() {
+  const now = /* @__PURE__ */ new Date();
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const from = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10)
+  };
+}
+async function monthly(req, res) {
+  const queryFrom = req.query.from ? `${req.query.from}-01` : void 0;
+  const queryTo = req.query.to ? getMonthEnd(String(req.query.to)) : void 0;
+  const range = getDefaultRange();
+  const from = queryFrom || range.from;
+  const to = queryTo || range.to;
+  const [rows] = await db.execute(
+    `SELECT DATE_FORMAT(date, '%Y-%m') AS month,
+      SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS total_income,
+      SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense
+     FROM transactions
+     WHERE date BETWEEN ? AND ?
+     GROUP BY DATE_FORMAT(date, '%Y-%m')
+     ORDER BY month ASC`,
+    [from, to]
+  );
+  res.json(ok(rows));
+}
+function getMonthEnd(value) {
+  const [year, month] = value.split("-").map(Number);
+  if (!year || !month) return `${value}-31`;
+  const end = new Date(year, month, 0);
+  return end.toISOString().slice(0, 10);
+}
+
+// src/routes/reports.ts
+var reportRoutes = Router7();
+reportRoutes.get("/monthly", requireAuth, monthly);
+
+// src/routes/index.ts
+var routes = Router8();
+routes.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+routes.use("/auth", authRoutes);
+routes.use("/transactions", transactionRoutes);
+routes.use("/categories", categoryRoutes);
+routes.use("/fixed-expenses", fixedExpenseRoutes);
+routes.use("/goals", goalRoutes);
+routes.use("/dashboard", dashboardRoutes);
+routes.use("/reports", reportRoutes);
+
+// src/app.ts
+var app = express();
+app.use(
+  cors({
+    origin: env.WEB_ORIGIN === "*" ? true : env.WEB_ORIGIN.split(",").map((o) => o.trim()),
+    credentials: true
+  })
+);
+app.use(helmet());
+app.use(express.json({ limit: "1mb" }));
+app.use(
+  rateLimit({
+    windowMs: env.RATE_LIMIT_WINDOW,
+    max: env.RATE_LIMIT_MAX
+  })
+);
+app.use(pinoHttp());
+app.use("/api", routes);
+app.use(errorHandler);
+
+export {
+  env,
+  app
+};

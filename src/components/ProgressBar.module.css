@@ -1,0 +1,24 @@
+﻿.track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.fill {
+  position: absolute;
+  inset: 0;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6daedb, #4e9f8a);
+  transition: width 0.4s ease;
+}
+
+.positive .fill {
+  background: linear-gradient(90deg, #6daedb, #4e9f8a);
+}
+
+.negative .fill {
+  background: linear-gradient(90deg, #e07a5f, #c96a58);
+}

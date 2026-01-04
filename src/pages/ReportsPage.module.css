@@ -1,0 +1,149 @@
+﻿.page {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.header h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.header select {
+  border: none;
+  background: var(--bg-muted);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  gap: var(--space-sm);
+  align-items: end;
+  min-height: 180px;
+}
+
+.barGroup {
+  display: grid;
+  gap: 6px;
+  align-items: end;
+  justify-items: center;
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+}
+
+.income,
+.expense {
+  width: 12px;
+  border-radius: 6px 6px 2px 2px;
+  transition: height 0.3s ease;
+}
+
+.income {
+  background: linear-gradient(180deg, rgba(109, 174, 219, 0.9), rgba(78, 159, 138, 0.8));
+}
+
+.expense {
+  background: linear-gradient(180deg, rgba(224, 122, 95, 0.9), rgba(199, 106, 88, 0.8));
+}
+
+.label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.table {
+  display: grid;
+  gap: 8px;
+}
+
+.tableHeader,
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.tableHeader {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.row {
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+  font-size: 13px;
+}
+
+.positive {
+  color: var(--positive);
+}
+
+.negative {
+  color: var(--negative);
+}
+
+.skeleton {
+  height: 120px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(200, 200, 200, 0.15), rgba(200, 200, 200, 0.3), rgba(200, 200, 200, 0.15));
+  animation: shimmer 1.6s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tableHeader {
+    display: none;
+  }
+
+  .row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

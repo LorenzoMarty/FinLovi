@@ -1,0 +1,92 @@
+﻿.wrapper {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.canvas {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.canvas svg {
+  width: 180px;
+  height: 180px;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.08));
+  animation: chartIn 0.35s ease-out;
+}
+
+@keyframes chartIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.tooltip {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  background: #ffffff;
+  padding: 8px 10px;
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+  font-size: 12px;
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.tooltip strong {
+  font-size: 13px;
+}
+
+.legend {
+  display: grid;
+  gap: 6px;
+}
+
+.legendItem {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: none;
+  background: #ffffff;
+  box-shadow: var(--shadow-soft);
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.legendItem:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+
+.legendValue {
+  color: var(--text-secondary);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.muted {
+  opacity: 0.5;
+}
