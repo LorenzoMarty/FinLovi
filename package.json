@@ -14,7 +14,7 @@
     "build": "npm run build:shared && npm run build:api && npm run build:web",
     "build:shared": "npm --workspace packages/shared run build",
     "build:api": "npm --workspace apps/api run build",
-    "build:web": "npm --workspace apps/web run build",
+    "build:web": "npm --workspace apps/web run build && cp -r apps/web/dist ./dist",
     "start": "node server.js",
     "prestart": "npm run build",
     "start:local": "npm-run-all -p start:api start:web",
