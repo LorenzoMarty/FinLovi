@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { db } from '../config/db.js';
-import { ok } from '../utils/response.js';
+import { ok, fail } from '../utils/response.js';
 
 function getDefaultRange() {
   const now = new Date();
@@ -13,28 +13,33 @@ function getDefaultRange() {
 }
 
 export async function monthly(req: Request, res: Response) {
-  const queryFrom = req.query.from ? `${req.query.from}-01` : undefined;
-  const queryTo = req.query.to ? getMonthEnd(String(req.query.to)) : undefined;
-  const range = getDefaultRange();
-  const from = queryFrom || range.from;
-  const to = queryTo || range.to;
+  try {
+    const queryFrom = req.query.from ? `${req.query.from}-01` : undefined;
+    const queryTo = req.query.to ? getMonthEnd(String(req.query.to)) : undefined;
+    const range = getDefaultRange();
+    const from = queryFrom || range.from;
+    const to = queryTo || range.to;
 
-  const [rows] = await db.execute<{
-    month: string;
-    total_income: number;
-    total_expense: number;
-  }[]>(
-    `SELECT DATE_FORMAT(date, '%Y-%m') AS month,
-      SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS total_income,
-      SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense
-     FROM transactions
-     WHERE date BETWEEN ? AND ?
-     GROUP BY DATE_FORMAT(date, '%Y-%m')
-     ORDER BY month ASC`,
-    [from, to],
-  );
+    const [rows] = await db.execute<{
+      month: string;
+      total_income: number;
+      total_expense: number;
+    }[]>(
+      `SELECT DATE_FORMAT(date, '%Y-%m') AS month,
+        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) AS total_income,
+        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense
+       FROM transactions
+       WHERE date BETWEEN ? AND ?
+       GROUP BY DATE_FORMAT(date, '%Y-%m')
+       ORDER BY month ASC`,
+      [from, to],
+    );
 
-  res.json(ok(rows));
+    res.json(ok(rows));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Erro ao gerar relatório';
+    res.status(503).json(fail('Erro ao gerar relatório', 'DB_ERROR', message));
+  }
 }
 
 function getMonthEnd(value: string) {
