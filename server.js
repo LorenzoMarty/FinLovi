@@ -62,6 +62,11 @@ async function start() {
   const server = express();
   server.disable("x-powered-by");
 
+  // Health check simples (sem tocar em banco) para a plataforma
+  server.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
   // API primeiro (para rotas /api etc)
   const apiApp = await loadApiApp();
   server.use(apiApp);
@@ -92,4 +97,12 @@ async function start() {
 start().catch((error) => {
   console.error("[startup] Erro fatal", error);
   process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
 });
