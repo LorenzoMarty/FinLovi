@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@finlovi/shared": "workspace:*",
+    "@finlovi/shared": "file:../../packages/shared",
     "@tanstack/react-query": "^5.35.1",
     "axios": "^1.6.8",
     "react": "^18.2.0",
@@ -21,6 +21,6 @@
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",
     "typescript": "^5.3.3",
-    "vite": "^5.2.7"
+    "vite": "^7.3.0"
   }
 }
