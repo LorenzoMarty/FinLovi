@@ -1,10 +1,11 @@
 import mysql from 'mysql2/promise';
 import { env } from '../config/env.js';
 
-const requiredKeys = ['DB_HOST', 'DB_NAME', 'DB_USER'] as const;
-const missing = requiredKeys.filter((key) => !env[key]);
+type RequiredKey = 'DB_HOST' | 'DB_NAME' | 'DB_USER';
+const requiredKeys: RequiredKey[] = ['DB_HOST', 'DB_NAME', 'DB_USER'];
+const missing = requiredKeys.filter((key) => !String(env[key] ?? '').trim());
 if (missing.length) {
-  console.warn(`[db] variáveis ausentes: ${missing.join(', ')} (conexão pode falhar)`);
+  console.warn(`[db] variaveis ausentes: ${missing.join(', ')} (conexao pode falhar)`);
 }
 
 export const pool = mysql.createPool({
@@ -19,6 +20,10 @@ export const pool = mysql.createPool({
   connectTimeout: 10_000,
   decimalNumbers: true,
   charset: 'utf8mb4_general_ci',
+});
+
+pool.on('error', (err) => {
+  console.error('[db] pool error', err.message);
 });
 
 export async function query<T = unknown>(sql: string, params: unknown[] = []) {

@@ -6,8 +6,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const webDistDir = path.join(__dirname, 'apps', 'web', 'dist');
-const webIndexFile = path.join(webDistDir, 'index.html');
+const webDistDir = path.join(__dirname, "dist");
+const webIndexFile = path.join(webDistDir, "index.html");
 
 const state = {
   apiLoaded: false,
