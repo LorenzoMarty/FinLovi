@@ -1,6 +1,12 @@
 import mysql from 'mysql2/promise';
 import { env } from '../config/env.js';
 
+const requiredKeys = ['DB_HOST', 'DB_NAME', 'DB_USER'] as const;
+const missing = requiredKeys.filter((key) => !env[key]);
+if (missing.length) {
+  console.warn(`[db] variáveis ausentes: ${missing.join(', ')} (conexão pode falhar)`);
+}
+
 export const pool = mysql.createPool({
   host: env.DB_HOST,
   port: env.DB_PORT,
@@ -30,6 +36,11 @@ export async function pingDb() {
     return { ok: true as const };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { ok: false as const, error: message };
+    return {
+      ok: false as const,
+      error: message,
+      host: env.DB_HOST,
+      database: env.DB_NAME,
+    };
   }
 }
