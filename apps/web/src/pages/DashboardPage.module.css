@@ -1,0 +1,184 @@
+﻿.page {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.kpiGrid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.mainGrid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+}
+
+.bottomGrid {
+  display: grid;
+  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-md);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.cardHeader h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.cardHeader p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.search {
+  border: none;
+  background: var(--bg-muted);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+  min-width: 220px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+}
+
+.listItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+}
+
+.listItem strong {
+  display: block;
+  font-size: 15px;
+}
+
+.listMeta {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.amount {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.positive {
+  color: var(--positive);
+}
+
+.negative {
+  color: var(--negative);
+}
+
+.rankBlock {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.rankBlock h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.rankItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.rankBar {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: var(--bg-muted);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rankBar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6daedb, #4e9f8a);
+}
+
+.notice {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.goals {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.goalItem {
+  display: grid;
+  gap: 8px;
+}
+
+.goalHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.goalHeader strong {
+  color: var(--text-primary);
+}
+
+.skeleton {
+  height: 120px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(200, 200, 200, 0.15), rgba(200, 200, 200, 0.3), rgba(200, 200, 200, 0.15));
+  animation: shimmer 1.6s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .mainGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .search {
+    width: 100%;
+  }
+}

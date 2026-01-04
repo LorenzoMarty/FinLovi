@@ -1,0 +1,133 @@
+﻿.page {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.header h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-md);
+}
+
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.card h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.list {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+}
+
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.itemHeader strong {
+  display: block;
+  font-size: 15px;
+}
+
+.meta {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.amount {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.form input {
+  border: none;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.primary {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #6daedb, #4e9f8a);
+  color: #f8fbfd;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--negative);
+}
+
+.skeleton {
+  height: 120px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, rgba(200, 200, 200, 0.15), rgba(200, 200, 200, 0.3), rgba(200, 200, 200, 0.15));
+  animation: shimmer 1.6s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .footer {
+    flex-direction: column;
+    gap: 4px;
+  }
+}

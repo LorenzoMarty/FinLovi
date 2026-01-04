@@ -1,0 +1,23 @@
+{
+  "name": "finlovi-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all -p dev:api dev:web",
+    "dev:api": "npm --workspace apps/api run dev",
+    "dev:web": "npm --workspace apps/web run dev",
+    "build": "npm-run-all -p build:api build:web",
+    "build:api": "npm --workspace apps/api run build",
+    "build:web": "npm --workspace apps/web run build",
+    "start": "npm-run-all -p start:api start:web",
+    "start:api": "npm --workspace apps/api run start",
+    "start:web": "npm --workspace apps/web run preview",
+    "test": "npm --workspace apps/api run test"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5"
+  }
+}
