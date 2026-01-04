@@ -15,33 +15,31 @@ for (const file of envFiles) {
 
 const envSchema = z.object({
   NODE_ENV: z.string().default('development'),
-  PORT: z.string().default('4000'),
-  DB_HOST: z.string(),
-  DB_PORT: z.string().default('3306'),
-  DB_NAME: z.string(),
-  DB_USER: z.string(),
-  DB_PASS: z.string(),
+  PORT: z.coerce.number().default(4000),
+  DB_HOST: z.string().default(''),
+  DB_PORT: z.coerce.number().default(3306),
+  DB_NAME: z.string().default(''),
+  DB_USER: z.string().default(''),
+  DB_PASS: z.string().default(''),
   WEB_ORIGIN: z.string().default('*'),
   AUTH_ENABLED: z.string().default('false'),
   AUTH_EMAIL: z.string().optional(),
   AUTH_PASSWORD: z.string().optional(),
   JWT_SECRET: z.string().optional(),
   JWT_REFRESH_SECRET: z.string().optional(),
-  RATE_LIMIT_WINDOW: z.string().default('60000'),
-  RATE_LIMIT_MAX: z.string().default('100'),
+  RATE_LIMIT_WINDOW: z.coerce.number().default(60000),
+  RATE_LIMIT_MAX: z.coerce.number().default(100),
 });
 
 const parsed = envSchema.safeParse(process.env);
+
 if (!parsed.success) {
-  // Fail fast with a clean message.
-  throw new Error(`Invalid environment variables: ${parsed.error.message}`);
+  console.warn('[env] Variáveis inválidas, usando defaults:', parsed.error.errors);
 }
 
+const data = parsed.success ? parsed.data : envSchema.parse({});
+
 export const env = {
-  ...parsed.data,
-  PORT: Number(parsed.data.PORT),
-  DB_PORT: Number(parsed.data.DB_PORT),
-  AUTH_ENABLED: parsed.data.AUTH_ENABLED === 'true',
-  RATE_LIMIT_WINDOW: Number(parsed.data.RATE_LIMIT_WINDOW),
-  RATE_LIMIT_MAX: Number(parsed.data.RATE_LIMIT_MAX),
+  ...data,
+  AUTH_ENABLED: data.AUTH_ENABLED === 'true',
 };
