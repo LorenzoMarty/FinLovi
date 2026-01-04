@@ -6,29 +6,63 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const webDistDir = path.join(__dirname, 'apps', 'web', 'dist');
-const webIndexFile = path.join(webDistDir, 'index.html');
-
 const state = {
   apiLoaded: false,
   apiError: null,
+  webPath: null,
 };
 
-function ensureBuildExists(filePath, label) {
-  if (!fs.existsSync(filePath)) {
-    console.error(`[startup] ${label} não encontrado: ${filePath}`);
-    console.error('[startup] Rode `npm run build` para gerar os artefatos.');
+function exists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch {
     return false;
   }
-  return true;
+}
+
+function findApiBuild() {
+  const candidates = [
+    path.join(__dirname, 'api-dist', 'index.js'),
+    path.join(__dirname, 'apps', 'api', 'dist', 'index.js'),
+    path.join(process.cwd(), 'api-dist', 'index.js'),
+    path.join(process.cwd(), 'apps', 'api', 'dist', 'index.js'),
+    path.join(process.cwd(), 'public_html', 'api-dist', 'index.js'),
+    path.join(process.cwd(), 'public_html', 'apps', 'api', 'dist', 'index.js'),
+  ];
+
+  for (const absPath of candidates) {
+    if (exists(absPath)) return absPath;
+  }
+  console.error('[startup] API build não encontrado. Caminhos tentados:');
+  candidates.forEach((c) => console.error(' -', c));
+  return null;
+}
+
+function findWebBuild() {
+  const candidates = [
+    path.join(__dirname, 'dist', 'index.html'),
+    path.join(__dirname, 'apps', 'web', 'dist', 'index.html'),
+    path.join(process.cwd(), 'dist', 'index.html'),
+    path.join(process.cwd(), 'apps', 'web', 'dist', 'index.html'),
+    path.join(process.cwd(), 'public_html', 'dist', 'index.html'),
+    path.join(process.cwd(), 'public_html', 'apps', 'web', 'dist', 'index.html'),
+  ];
+
+  for (const indexFile of candidates) {
+    if (exists(indexFile)) {
+      return { dir: path.dirname(indexFile), indexFile };
+    }
+  }
+
+  console.error('[startup] WEB build não encontrado. Caminhos tentados:');
+  candidates.forEach((c) => console.error(' -', c));
+  return { dir: null, indexFile: null };
 }
 
 async function loadApiApp() {
-  const apiBuildAbsPath = path.join(__dirname, 'api-dist', 'index.js');
-
-  if (!ensureBuildExists(apiBuildAbsPath, 'Build da API (api-dist/index.js)')) {
+  const apiBuildAbsPath = findApiBuild();
+  if (!apiBuildAbsPath) {
     state.apiError = 'API build ausente';
-    console.error('[startup] API falhou (build ausente). Web seguirá online.');
     return null;
   }
 
@@ -37,11 +71,11 @@ async function loadApiApp() {
     const mod = await import(apiUrl);
     const apiApp = mod.app ?? mod.default;
     if (!apiApp) {
-      throw new Error('API build carregou, mas não exporta `app` nem `default` (api-dist/index.js)');
+      throw new Error('API build carregou, mas não exporta `app` nem `default`');
     }
     state.apiLoaded = true;
     state.apiError = null;
-    console.log('[startup] API carregada com sucesso.');
+    console.log('[startup] API carregada com sucesso de', apiBuildAbsPath);
     return apiApp;
   } catch (error) {
     state.apiError = error instanceof Error ? error.message : String(error);
@@ -51,44 +85,42 @@ async function loadApiApp() {
 }
 
 async function start() {
-  // Verifica build do web
-  if (!ensureBuildExists(webDistDir, 'Pasta do build WEB')) {
-    // segue rodando para servir health, mas avisando que o build não existe
-  }
-  if (fs.existsSync(webDistDir) && !ensureBuildExists(webIndexFile, 'WEB index.html')) {
-    // segue rodando
+  const web = findWebBuild();
+  if (web.indexFile) {
+    state.webPath = web.indexFile;
   }
 
   const server = express();
   server.disable('x-powered-by');
 
-  // Health check (sem tocar no banco)
   server.get('/health', (_req, res) => {
     res.json({
       ok: true,
       apiLoaded: state.apiLoaded,
       apiError: state.apiError,
       nodeVersion: process.version,
+      cwd: process.cwd(),
+      dirname: __dirname,
+      webFound: Boolean(web.indexFile),
+      webPath: web.indexFile,
     });
   });
 
-  // API (tenta carregar; se falhar, não derruba o processo)
   const apiApp = await loadApiApp();
   if (apiApp) {
     server.use(apiApp);
   }
 
-  // Frontend estático
-  server.use(express.static(webDistDir));
-
-  // SPA fallback
-  server.get('*', (_req, res) => {
-    if (fs.existsSync(webIndexFile)) {
-      res.sendFile(webIndexFile);
-      return;
-    }
-    res.status(500).type('text').send('WEB build não encontrado. Execute `npm run build`.');
-  });
+  if (web.dir && web.indexFile) {
+    server.use(express.static(web.dir));
+    server.get('*', (_req, res) => {
+      res.sendFile(web.indexFile);
+    });
+  } else {
+    server.get('*', (_req, res) => {
+      res.status(500).type('text').send('WEB build não encontrado. Execute `npm run build`.');
+    });
+  }
 
   const PORT = Number(process.env.PORT) || 3000;
   server.listen(PORT, '0.0.0.0', () => {
